@@ -3,7 +3,7 @@ import numpy as np
 from Lab1_FK_answers import *
 
 
-def part1(viewer, bvh_file_path):
+def part1(viewer:SimpleViewer, bvh_file_path):
     """
     part1 读取T-pose， 完成part1_calculate_T_pose函数
     """

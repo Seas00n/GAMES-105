@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from bvh import Bvh
 
 def load_motion_data(bvh_file_path):
     """part2 辅助函数，读取bvh文件"""
@@ -30,9 +31,15 @@ def part1_calculate_T_pose(bvh_file_path):
     Tips:
         joint_name顺序应该和bvh一致
     """
-    joint_name = None
-    joint_parent = None
-    joint_offset = None
+    with open(bvh_file_path) as f:
+        mocap = Bvh(f.read())
+    joint_name = mocap.get_joints_names()
+    joint_parent = []
+    joint_offset = []
+    for jn in joint_name:
+        joint_parent.append(mocap.joint_parent_index(jn))
+        joint_offset.append(np.array(mocap.joint_offset(jn)))
+    joint_offset = np.array(joint_offset)
     return joint_name, joint_parent, joint_offset
 
 
@@ -48,8 +55,27 @@ def part2_forward_kinematics(joint_name, joint_parent, joint_offset, motion_data
         1. joint_orientations的四元数顺序为(x, y, z, w)
         2. from_euler时注意使用大写的XYZ
     """
-    joint_positions = None
-    joint_orientations = None
+    motion_channels_data = motion_data[frame_id]
+    root_position = np.array(motion_channels_data[0:3])
+    joint_local_rotation = []
+    for i in range(len(joint_name)):
+        joint_local_rotation.append(motion_channels_data[3*i+3:3*i+6])
+    
+    joint_positions = []
+    joint_orientations = []
+    for i in range(len(joint_name)):
+        if joint_parent[i] == -1:
+            joint_orientation = R.from_euler('XYZ', joint_local_rotation[i], degrees=True)
+            joint_position = root_position.reshape(-1,)
+        else:
+            parent_global_orientation = R.from_quat(joint_orientations[joint_parent[i]])
+            joint_orientation = parent_global_orientation * R.from_euler('XYZ', joint_local_rotation[i], degrees=True)
+            parent_global_position = joint_positions[joint_parent[i]].reshape((-1,1))
+            joint_position = parent_global_position+parent_global_orientation.as_matrix()@joint_offset[i].reshape(-1,1)
+        joint_orientations.append(joint_orientation.as_quat())
+        joint_positions.append(joint_position.reshape(-1,))
+    joint_positions = np.array(joint_positions)
+    joint_orientations = np.array(joint_orientations)
     return joint_positions, joint_orientations
 
 
@@ -63,5 +89,13 @@ def part3_retarget_func(T_pose_bvh_path, A_pose_bvh_path):
         两个bvh的joint name顺序可能不一致哦(
         as_euler时也需要大写的XYZ
     """
-    motion_data = None
+    T_joint_name, _, _ = part1_calculate_T_pose(T_pose_bvh_path)
+    A_joint_name, _, _ = part1_calculate_T_pose(A_pose_bvh_path)
+    A_motion_data = load_motion_data(A_pose_bvh_path)
+    motion_data = []
+
+    for i in range(np.shape(A_motion_data)[0]):
+        data = []
+        # for joint in 
+
     return motion_data
