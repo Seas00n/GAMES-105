@@ -53,6 +53,7 @@ def part3_retarget(viewer, T_pose_bvh_path, A_pose_bvh_path):
     joint_name, joint_parent, joint_offset = part1_calculate_T_pose(T_pose_bvh_path)
     # A-pose的动作数据
     retarget_motion_data = part3_retarget_func(T_pose_bvh_path, A_pose_bvh_path)
+    # retarget_motion_data = load_motion_data(A_pose_bvh_path)
 
     #播放和上面完全相同
     frame_num = retarget_motion_data.shape[0]
@@ -79,10 +80,10 @@ def main():
 
     # part2
     # part2_one_pose(viewer, bvh_file_path)
-    # part2_animation(viewer, bvh_file_path)
+    part2_animation(viewer, bvh_file_path)
 
     # part3
-    part3_retarget(viewer, "data/walk60.bvh", "data/A_pose_run.bvh")
+    # part3_retarget(viewer, "data/walk60.bvh", "data/A_pose_run.bvh")
 
 
 if __name__ == "__main__":

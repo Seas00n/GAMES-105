@@ -89,13 +89,33 @@ def part3_retarget_func(T_pose_bvh_path, A_pose_bvh_path):
         两个bvh的joint name顺序可能不一致哦(
         as_euler时也需要大写的XYZ
     """
-    T_joint_name, _, _ = part1_calculate_T_pose(T_pose_bvh_path)
-    A_joint_name, _, _ = part1_calculate_T_pose(A_pose_bvh_path)
-    A_motion_data = load_motion_data(A_pose_bvh_path)
+    with open(T_pose_bvh_path) as f:
+        mocap_T = Bvh(f.read())
+    with open(A_pose_bvh_path) as f:
+        mocap_A = Bvh(f.read())
+
+    A_motion_data = load_motion_data(A_pose_bvh_path)[:1000,:]
     motion_data = []
 
-    for i in range(np.shape(A_motion_data)[0]):
-        data = []
-        # for joint in 
+    T_joint_names = mocap_T.get_joints_names()
 
+    # 矩阵并行加速（改进）
+    for i in range(np.shape(A_motion_data)[0]):
+        data_in_line = []
+        for name_T in T_joint_names:
+            idx_A = mocap_A.get_joint_index(name=name_T)
+            if name_T == "RootJoint":
+                data_in_line += list(A_motion_data[i][0:6])
+            elif name_T == 'lShoulder':
+                Rot = (R.from_euler('XYZ', list(A_motion_data[i][idx_A * 3 + 3: idx_A*3 + 6]), degrees=True).as_matrix())@(
+                       R.from_euler('XYZ', [0., 0., -45.], degrees=True).as_matrix())
+                data_in_line += list(R.from_matrix(Rot).as_euler('XYZ',degrees=True))
+            elif name_T == 'rShoulder':
+                Rot = (R.from_euler('XYZ', list(A_motion_data[i][idx_A * 3 + 3: idx_A*3 + 6]), degrees=True).as_matrix())@( 
+                       R.from_euler('XYZ', [0., 0., 45.], degrees=True).as_matrix())
+                data_in_line += list(R.from_matrix(Rot).as_euler('XYZ',True))
+            else:
+                data_in_line += list(A_motion_data[i][idx_A*3+3:idx_A*3+6])
+        motion_data.append(np.array(data_in_line).reshape(-1,))
+    motion_data = np.array(motion_data)
     return motion_data
