@@ -1,6 +1,6 @@
 from viewer import SimpleViewer
 from scipy.spatial.transform import Rotation as R
-from Lab3_IK_answers import *
+from Lab_IK_debug import *
 
     
 def part1_hard(viewer, target_pos):
