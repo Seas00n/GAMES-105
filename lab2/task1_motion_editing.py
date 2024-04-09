@@ -23,7 +23,7 @@ class ShowBVHUpdate():
     def update(self, task):
         if not self.viewer.update_flag:
             return task.cont
-        
+        print(self.cur_frame)
         speed_inv = 1 # 控制播放速度的整数,越大越慢
         for i in range(len(self.joint_name)):
             self.viewer.set_joint_position_orientation(self.joint_name[i],
@@ -38,7 +38,7 @@ def part1_translation_and_rotation(viewer, setting_id):
     bvh_list = ['motion_material/walk_forward.bvh', 'motion_material/run_forward.bvh', 'motion_material/walk_and_turn_left.bvh']
     pos_xz_list = [np.array([-4,4]), np.array([2,4]), np.array([6,1])]
     facing_xz_list = [np.array([1,1]), np.array([5,1]), np.array([1,1])]
-    frame_list = [0, -1, -1]
+    frame_list = [0, -1, 100]
     
     # 读取设置
     bvh = bvh_list[setting_id]
@@ -135,7 +135,7 @@ def main():
     # 请自行取消需要的注释并更改测试setting_id
     # 请不要同时取消多个注释，否则前者会被后者覆盖
     
-    part1_translation_and_rotation(viewer, 0) # 数字代表不同的测试setting
+    part1_translation_and_rotation(viewer, 2) # 数字代表不同的测试setting
     # part2_interpolate(viewer, 1) # 数字代表不同期望的前进速度
     # part3_build_loop(viewer)
     # part4_concatenate(viewer, 0) # 数字代表不同的测试setting

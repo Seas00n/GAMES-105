@@ -205,10 +205,12 @@ class BVHMotion():
         输入: rotation 形状为(4,)的ndarray, 四元数旋转
         输出: Ry, Rxz，分别为绕y轴的旋转和转轴在xz平面的旋转，并满足R = Ry * Rxz
         '''
-        Ry = np.zeros_like(rotation)
-        Rxz = np.zeros_like(rotation)
+        # Ry = np.zeros_like(rotation)
+        # Rxz = np.zeros_like(rotation)
         # TODO: 你的代码
-        
+        Ry = R.from_quat(rotation).as_euler("XYZ", degrees=True)
+        Ry = R.from_euler("XYZ", [0, Ry[1], 0], degrees=True)
+        Rxz = Ry.inv()*R.from_quat(rotation)
         return Ry, Rxz
     
     # part 1
@@ -232,6 +234,14 @@ class BVHMotion():
         offset = target_translation_xz - res.joint_position[frame_num, 0, [0,2]]
         res.joint_position[:, 0, [0,2]] += offset
         # TODO: 你的代码
+        sin_theta_xz = np.cross(target_facing_direction_xz, np.array([0, 1])) / np.linalg.norm(target_facing_direction_xz)
+        cos_theta_xz = np.dot(target_facing_direction_xz, np.array([0, 1])) / np.linalg.norm(target_facing_direction_xz)
+        theta = np.arctan2(sin_theta_xz, cos_theta_xz)
+        new_Ry = R.from_euler("Y", theta, degrees=False)
+        R_y, _ = self.decompose_rotation_with_yaxis(res.joint_rotation[frame_num,0,:])
+        res.joint_rotation[:,0,:] = (new_Ry*R_y.inv()*R.from_quat(res.joint_rotation[:,0,:])).as_quat()
+        res.joint_position[:,0,:] = ((new_Ry*R_y.inv()).as_matrix()@(res.joint_position[:,0,:]-res.joint_position[frame_num,0,:]).T).T+res.joint_position[frame_num,0,:]
+        
         return res
 
 # part2

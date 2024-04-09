@@ -122,7 +122,21 @@ def part1_inverse_kinematics(meta_data:MetaData, joint_positions, joint_orientat
     strench_range = np.linalg.norm(
         (meta_data.joint_initial_position[path_ik[1:]]-meta_data.joint_initial_position[path_ik[0:-1]]),
         axis=1).sum()
-        
+    
+    def rodrigus_formula(vec1, vec2):
+        """
+        旋转向量转旋转矩阵
+        """
+        if np.allclose(vec1, vec2, atol=1e-3, rtol=1e-3):
+            return np.eye(3), vec1
+        else:
+            axis = np.cross(vec1, vec2)
+            axis = axis / np.linalg.norm(axis)
+            angle = np.arccos(
+                np.dot(vec1, vec2) /
+                (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
+            return R.from_rotvec(axis * angle).as_matrix(), axis
+
     def ccd(joint_positions, joint_orientations, out_of_strench):
         root_inverse = False
         for i in range(len(path_ik)-1, 0, -1):
@@ -134,16 +148,10 @@ def part1_inverse_kinematics(meta_data:MetaData, joint_positions, joint_orientat
             vec1 = vec1/np.linalg.norm(vec1)
             vec2 = target_pose-joint_positions[parent_index]
             vec2 = vec2/np.linalg.norm(vec2)
-            if np.allclose(vec1, vec2, atol=1e-3,rtol=1e-3):
-                rot = np.eye(3)
-            # elif meta_data.joint_name[parent_index]=="lKnee" or meta_data.joint_name[parent_index]=='rKnee':
-            #     rot = np.eye(3)
-            else:
-                axis = np.cross(vec1, vec2)
-                axis = axis / np.linalg.norm(axis)
-                angle = np.arccos(np.dot(vec1, vec2) /
-                    (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
-                rot = R.from_rotvec(axis*angle).as_matrix()
+            rot, axis = rodrigus_formula(vec1, vec2)
+            # if meta_data.joint_name[parent_index] == "lKnee" or meta_data.joint_name[parent_index]=="rKnee":
+            #     rot_back,_ = rodrigus_formula(np.array([0,0,-1]), axis)
+            #     rot = rot_back@rot 
             all_child_joint_node = meta_data.tree.subtree(parent_index).all_nodes()
             all_child_joint = [n.identifier for n in all_child_joint_node]
             all_joint_name = [meta_data.joint_name[i] for i in all_child_joint]
@@ -193,6 +201,20 @@ def part2_inverse_kinematics(meta_data:MetaData, joint_positions, joint_orientat
         (meta_data.joint_initial_position[path_ik[1:]]-meta_data.joint_initial_position[path_ik[0:-1]]),
         axis=1).sum()
     
+    def rodrigus_formula(vec1, vec2):
+        """
+        旋转向量转旋转矩阵
+        """
+        if np.allclose(vec1, vec2, atol=1e-3, rtol=1e-3):
+            return np.eye(3)
+        else:
+            axis = np.cross(vec1, vec2)
+            axis = axis / np.linalg.norm(axis)
+            angle = np.arccos(
+                np.dot(vec1, vec2) /
+                (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
+            return R.from_rotvec(axis * angle).as_matrix(), axis
+
     def ccd(joint_positions, joint_orientations, out_of_strench):
         root_inverse = False
         for i in range(len(path_ik)-1, 0, -1):
@@ -204,14 +226,7 @@ def part2_inverse_kinematics(meta_data:MetaData, joint_positions, joint_orientat
             vec1 = vec1/np.linalg.norm(vec1)
             vec2 = target_pose-joint_positions[parent_index]
             vec2 = vec2/np.linalg.norm(vec2)
-            if np.allclose(vec1, vec2, atol=1e-3,rtol=1e-3):
-                rot = np.eye(3)
-            else:
-                axis = np.cross(vec1, vec2)
-                axis = axis / np.linalg.norm(axis)
-                angle = np.arccos(np.dot(vec1, vec2) /
-                    (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
-                rot = R.from_rotvec(axis*angle).as_matrix()
+            rot, axis = rodrigus_formula(vec1, vec2)    
             all_child_joint_node = meta_data.tree.subtree(parent_index).all_nodes()
             all_child_joint = [n.identifier for n in all_child_joint_node]
             all_joint_name = [meta_data.joint_name[i] for i in all_child_joint]
