@@ -244,7 +244,29 @@ class BVHMotion():
         
         return res
 
+
 # part2
+def slerp(joint_rotation1, joint_rotation2, alpha):
+    #参考 https://krasjet.github.io/quaternion/quaternion.pdf
+    cos_theta = np.dot(joint_rotation1, joint_rotation2)
+    # 解决双倍覆盖问题
+    if cos_theta < 0:
+        joint_rotation1 *= -1
+        cos_theta = np.dot(joint_rotation1, joint_rotation2)
+    theta = np.arccos(cos_theta)
+    sin_theta = np.sin(theta)
+    # 在theta很小时，会产生除0错误
+    if sin_theta > 0.001:
+        w1 = np.sin((1 - alpha) * theta) / sin_theta
+        w2 = np.sin(alpha*theta) / sin_theta
+    else:
+        # 此时使用Nlerp
+        w1 = 1-alpha
+        w2 = alpha
+    res_joint_rotation = w1*joint_rotation1+w2*joint_rotation2
+    res_joint_rotation /= np.linalg.norm(res_joint_rotation)
+    return res_joint_rotation
+
 def blend_two_motions(bvh_motion1, bvh_motion2, alpha):
     '''
     blend两个bvh动作
@@ -260,7 +282,29 @@ def blend_two_motions(bvh_motion1, bvh_motion2, alpha):
     res.joint_rotation[...,3] = 1.0
 
     # TODO: 你的代码
+    n_1 = len(bvh_motion1.joint_position)
+    n_2 = len(bvh_motion2.joint_position)
+    n_3 = len(alpha)
+    num_joint = len(bvh_motion1.joint_position[0])
+   
+
+    idx_motion3 = np.arange(n_3)
+    idx_motion1 = np.floor(idx_motion3/n_3*n_1).astype(np.int32)
+    idx_motion2 = np.floor(idx_motion3/n_3*n_2).astype(np.int32)
     
+    joint_position1 = bvh_motion1.joint_position[idx_motion1,:,:]
+    joint_position2 = bvh_motion2.joint_position[idx_motion2,:,:]
+    joint_rotation1 = bvh_motion1.joint_rotation[idx_motion1,:,:]
+    joint_rotation2 = bvh_motion2.joint_rotation[idx_motion2,:,:]
+    res.joint_position = np.einsum('i,ijk->ijk', (1-alpha), joint_position1)+np.einsum('i, ijk->ijk', alpha, joint_position2)
+    for i in range(0, n_3):
+        for j in range(0, num_joint):
+            res.joint_rotation[i,j,:] = slerp(
+                joint_rotation1[i,j,:],
+                joint_rotation2[i,j,:],
+                alpha[i]
+            )
+
     return res
 
 # part3
@@ -278,7 +322,7 @@ def build_loop_motion(bvh_motion):
     return build_loop_motion(res)
 
 # part4
-def concatenate_two_motions(bvh_motion1, bvh_motion2, mix_frame1, mix_time):
+def concatenate_two_motions(bvh_motion1:BVHMotion, bvh_motion2:BVHMotion, mix_frame1, mix_time):
     '''
     将两个bvh动作平滑地连接起来，mix_time表示用于混合的帧数
     混合开始时间是第一个动作的第mix_frame1帧
@@ -290,8 +334,46 @@ def concatenate_two_motions(bvh_motion1, bvh_motion2, mix_frame1, mix_time):
     
     # TODO: 你的代码
     # 下面这种直接拼肯定是不行的(
-    res.joint_position = np.concatenate([res.joint_position[:mix_frame1], bvh_motion2.joint_position], axis=0)
-    res.joint_rotation = np.concatenate([res.joint_rotation[:mix_frame1], bvh_motion2.joint_rotation], axis=0)
+    r1_in_frame1 = bvh_motion1.joint_rotation[mix_frame1, 0]
+    p1_in_frame1 = bvh_motion1.joint_position[mix_frame1, 0, [0,2]]
+    facing_axis = R.from_quat(r1_in_frame1).as_matrix()[[0,2],2]
+    
+    new_bvh_motion2 = bvh_motion2.translation_and_rotation(frame_num=0, target_translation_xz=p1_in_frame1,
+                                                       target_facing_direction_xz=facing_axis)
+
+    
+    half_time = 0.3
+    dt = 1 / 60
+    y = 4.0 * 0.69314 / (half_time + 1e-5)
+
+    from smooth_utils import quat_to_avel
+    src_avel = quat_to_avel(bvh_motion1.joint_rotation[mix_frame1-mix_time//2:mix_frame1], dt)
+    dst_avel = quat_to_avel(new_bvh_motion2.joint_rotation[0:mix_time//2], dt)
+    off_avel = src_avel[-1] - dst_avel[0]
+    off_rot = (R.from_quat(bvh_motion1.joint_rotation[mix_frame1])*R.from_quat(new_bvh_motion2.joint_rotation[0].copy()).inv()).as_rotvec()
+
+    src_vel = bvh_motion1.joint_position[mix_frame1] - bvh_motion1.joint_position[mix_frame1-1]
+    dst_vel = new_bvh_motion2.joint_position[1]-new_bvh_motion2.joint_position[0]
+    off_vel = (src_vel - dst_vel) / 60
+    off_pos = bvh_motion1.joint_position[mix_frame1] - new_bvh_motion2.joint_position[0]
+    for i in range(len(new_bvh_motion2.joint_position)):
+        tmp_ydt = y * i * dt
+        eydt = np.exp( -tmp_ydt)
+        # eydt = 1.0 / (1.0 + tmp_ydt + 0.48 * tmp_ydt * tmp_ydt + 0.235 * tmp_ydt * tmp_ydt * tmp_ydt)
+        j1 = off_vel + off_pos * y
+        j2 = off_avel + off_rot * y
+        off_pos_i = eydt * (off_pos + j1 * i * dt)
+        off_vel_i = eydt * (off_vel - j1 * y * i * dt)
+        off_rot_i = R.from_rotvec(eydt * (off_rot + j2 * i * dt)).as_rotvec()
+        off_avel_i = eydt * (off_avel - j2 * y * i * dt)
+
+
+        new_bvh_motion2.joint_position[i] = new_bvh_motion2.joint_position[i] + off_pos_i
+        new_bvh_motion2.joint_rotation[i] = (R.from_rotvec(off_rot_i)* R.from_quat(new_bvh_motion2.joint_rotation[i])).as_quat()
+
+
+    res.joint_position = np.concatenate([res.joint_position[:mix_frame1],  new_bvh_motion2.joint_position], axis=0)
+    res.joint_rotation = np.concatenate([res.joint_rotation[:mix_frame1],  new_bvh_motion2.joint_rotation], axis=0)
     
     return res
 

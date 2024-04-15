@@ -23,7 +23,6 @@ class ShowBVHUpdate():
     def update(self, task):
         if not self.viewer.update_flag:
             return task.cont
-        print(self.cur_frame)
         speed_inv = 1 # 控制播放速度的整数,越大越慢
         for i in range(len(self.joint_name)):
             self.viewer.set_joint_position_orientation(self.joint_name[i],
@@ -40,7 +39,7 @@ def part1_translation_and_rotation(viewer, setting_id):
     facing_xz_list = [np.array([1,1]), np.array([5,1]), np.array([1,1])]
     frame_list = [0, -1, 100]
     
-    # 读取设置
+    # 读取设置  
     bvh = bvh_list[setting_id]
     pos = pos_xz_list[setting_id]
     facing_xz = facing_xz_list[setting_id]
@@ -72,10 +71,15 @@ def part2_interpolate(viewer, v):
     # 计算插值系数
     v1 = (walk_forward.joint_position[-1,0,2] / walk_forward.motion_length)*60
     v2 = (run_forward.joint_position[-1,0,2] / run_forward.motion_length)*60
+    if v > v2:
+        v = v2
+    elif v < v1:
+        v = v1
     blend_weight = (v-v1)/(v2-v1)
     distance = (1-blend_weight)*walk_forward.joint_position[-1,0,2] + blend_weight*run_forward.joint_position[-1,0,2]
     cycle_time = np.around(distance / v*60).astype(np.int32)
     alpha = np.ones((cycle_time,)) * blend_weight
+    print(blend_weight)
     
     # 插值
     motion = blend_two_motions(walk_forward, run_forward, alpha)
@@ -135,10 +139,10 @@ def main():
     # 请自行取消需要的注释并更改测试setting_id
     # 请不要同时取消多个注释，否则前者会被后者覆盖
     
-    part1_translation_and_rotation(viewer, 2) # 数字代表不同的测试setting
-    # part2_interpolate(viewer, 1) # 数字代表不同期望的前进速度
+    # part1_translation_and_rotation(viewer, 2) # 数字代表不同的测试setting
+    # part2_interpolate(viewer, 2) # 数字代表不同期望的前进速度
     # part3_build_loop(viewer)
-    # part4_concatenate(viewer, 0) # 数字代表不同的测试setting
+    part4_concatenate(viewer, 0) # 数字代表不同的测试setting
     viewer.run()
     
 if __name__ == '__main__':
